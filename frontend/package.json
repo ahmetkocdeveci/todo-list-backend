@@ -1,0 +1,39 @@
+{
+  "name": "todo-list-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-Stack Todo List - Nuxt 3 Frontend",
+  "author": "Ahmet Kocdeveci",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahmetkocdeveci/todo-list-backend.git",
+    "directory": "frontend"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@nuxtjs/tailwindcss": "^6.12.1",
+    "@pinia/nuxt": "^0.5.4",
+    "nuxt": "^3.12.3",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.1.5"
+  },
+  "dependencies": {
+    "@vueuse/core": "^10.11.1",
+    "@vueuse/nuxt": "^10.11.1",
+    "pinia": "^2.2.0",
+    "vue-toastification": "^2.0.0-rc.5"
+  }
+}
