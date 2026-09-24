@@ -13,6 +13,7 @@ const { cleanupUploadTempFiles } = require('./middlewares/upload');
 const authRoutes = require('./routes/authRoutes');
 const todoRoutes = require('./routes/todoRoutes');
 const userRoutes = require('./routes/userRoutes');
+const workspaceRoutes = require('./routes/workspaceRoutes');
 
 const app = express();
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
@@ -25,7 +26,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 app.use(helmet());
-app.use(rateLimit({
+if (process.env.NODE_ENV !== 'test') app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
@@ -39,7 +40,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: 'Too many authentication attempts. Please try again later.' },
 });
-app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
+if (process.env.NODE_ENV !== 'test') app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
 
 app.use(cors({
   origin(origin, callback) {
@@ -69,6 +70,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workspaces', workspaceRoutes);
 
 app.use((req, res, next) => {
   const error = new Error(`Route not found: ${req.originalUrl}`);

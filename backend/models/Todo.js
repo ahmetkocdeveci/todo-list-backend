@@ -63,6 +63,11 @@ const todoSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Todo must belong to a user'],
     },
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      default: null,
+    },
     sharedWith: [
       {
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -88,6 +93,7 @@ const todoSchema = new mongoose.Schema(
 );
 
 todoSchema.index({ owner: 1, createdAt: -1 });
+todoSchema.index({ workspace: 1, createdAt: -1 });
 todoSchema.index({ status: 1, priority: 1 });
 todoSchema.index({ dueDate: 1 });
 todoSchema.index({ title: 'text', description: 'text', tags: 'text' });

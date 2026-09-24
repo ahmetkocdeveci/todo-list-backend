@@ -80,11 +80,11 @@
               </div>
             </div>
 
-            <label class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer">
-              <input v-model="form.isPublic" type="checkbox" class="mt-0.5 h-4 w-4 accent-indigo-600" />
+            <label class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50" :class="{ 'opacity-60 cursor-not-allowed': isTeamWorkspace, 'cursor-pointer': !isTeamWorkspace }">
+              <input v-model="form.isPublic" :disabled="isTeamWorkspace" type="checkbox" class="mt-0.5 h-4 w-4 accent-indigo-600" />
               <span>
                 <span class="block text-sm font-medium text-gray-800 dark:text-gray-100">Show on my profile</span>
-                <span class="block text-xs text-gray-500 dark:text-gray-400">Private by default. Shared collaborators can still access it.</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ isTeamWorkspace ? 'Team workspace todos are private to workspace members.' : 'Private by default. Shared collaborators can still access it.' }}</span>
               </span>
             </label>
 
@@ -197,6 +197,7 @@
 <script setup lang="ts">
 import type { Todo } from '~/stores/todos'
 import { useTodosStore } from '~/stores/todos'
+import { useWorkspacesStore } from '~/stores/workspaces'
 import { useToast } from '~/composables/useToast'
 
 const props = defineProps<{
@@ -210,6 +211,7 @@ const emit = defineEmits<{
 }>()
 
 const todosStore = useTodosStore()
+const workspacesStore = useWorkspacesStore()
 const toast = useToast()
 const { loading } = storeToRefs(todosStore)
 
@@ -230,6 +232,8 @@ const form = reactive({
   dueDate: '',
   tags: [] as string[],
 })
+
+const isTeamWorkspace = computed(() => Boolean(props.editTodo?.workspace) || workspacesStore.activeSummary?.type === 'team')
 
 const toLocalDateTimeInput = (value: string | Date) => {
   const date = new Date(value)
@@ -283,6 +287,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(isTeamWorkspace, (isTeam: boolean) => {
+  if (isTeam) form.isPublic = false
+}, { immediate: true })
 
 const minDate = computed(() => toLocalDateTimeInput(new Date()))
 
@@ -342,6 +350,8 @@ const buildPayload = () => {
   } else if (props.editTodo) {
     payload.dueDate = null
   }
+
+  if (!props.editTodo && workspacesStore.activeWorkspaceId) payload.workspace = workspacesStore.activeWorkspaceId
 
   return payload
 }

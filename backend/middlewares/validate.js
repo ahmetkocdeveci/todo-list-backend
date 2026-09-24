@@ -85,6 +85,7 @@ const createTodoSchema = Joi.object({
     'date.min': 'Due date cannot be in the past',
   }),
   tags: Joi.array().items(Joi.string().max(30)).max(10).optional(),
+  workspace: Joi.string().hex().length(24).optional(),
 });
 
 const updateTodoSchema = Joi.object({
@@ -116,6 +117,20 @@ const shareTodoSchema = Joi.object({
   permission: Joi.string().valid('view', 'edit').default('view'),
 });
 
+const createWorkspaceSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(80).required(),
+  description: Joi.string().trim().max(300).optional().allow(''),
+});
+
+const inviteWorkspaceMemberSchema = Joi.object({
+  email: Joi.string().email().required(),
+  role: Joi.string().valid('editor', 'viewer').required(),
+});
+
+const updateWorkspaceMemberRoleSchema = Joi.object({
+  role: Joi.string().valid('editor', 'viewer').required(),
+});
+
 module.exports = {
   validate,
   normalizeTags,
@@ -127,5 +142,8 @@ module.exports = {
     updateProfile: updateProfileSchema,
     contact: contactSchema,
     shareTodo: shareTodoSchema,
+    createWorkspace: createWorkspaceSchema,
+    inviteWorkspaceMember: inviteWorkspaceMemberSchema,
+    updateWorkspaceMemberRole: updateWorkspaceMemberRoleSchema,
   },
 };

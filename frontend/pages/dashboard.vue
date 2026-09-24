@@ -4,7 +4,7 @@
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
         👋 Welcome back, {{ user?.name || user?.username }}!
       </h1>
-      <p class="text-gray-500 dark:text-gray-400 mt-1">Here's what's on your plate today.</p>
+      <p class="text-gray-500 dark:text-gray-400 mt-1">{{ workspacesStore.activeSummary?.name || 'Your workspace' }} · here's what's on your plate today.</p>
     </div>
 
     <div
@@ -45,6 +45,7 @@
             v-for="todo in recentTodos"
             :key="todo._id"
             :todo="todo"
+            :readonly="!canManageTodo(todo)"
             @toggle="handleToggle"
             @edit="openEdit"
             @delete="handleDelete"
@@ -54,12 +55,12 @@
         <div v-else class="card text-center py-12 text-gray-400">
           <div class="text-4xl mb-3">📋</div>
           <p>No todos yet.</p>
-          <button @click="showForm = true" class="btn-primary mt-4">Create your first todo</button>
+          <button v-if="workspacesStore.canCreateTodos" @click="showForm = true" class="btn-primary mt-4">Create your first todo</button>
         </div>
       </div>
 
       <div class="space-y-4">
-        <button @click="showForm = true" class="btn-primary w-full py-3 text-base">
+        <button @click="showForm = true" class="btn-primary w-full py-3 text-base" :disabled="!workspacesStore.canCreateTodos">
           ➕ New Todo
         </button>
 
@@ -115,6 +116,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
 import { useTodosStore } from '~/stores/todos'
+import { useWorkspacesStore } from '~/stores/workspaces'
 import type { Todo } from '~/stores/todos'
 import { useToast } from '~/composables/useToast'
 
@@ -123,6 +125,7 @@ useHead({ title: 'Dashboard' })
 
 const authStore = useAuthStore()
 const todosStore = useTodosStore()
+const workspacesStore = useWorkspacesStore()
 const toast = useToast()
 
 const { user } = storeToRefs(authStore)
@@ -130,6 +133,7 @@ const showForm = ref(false)
 const editingTodo = ref<Todo | null>(null)
 
 const recentTodos = computed(() => todosStore.todos.slice(0, 5))
+const canManageTodo = (todo: Todo) => workspacesStore.activeRole === 'owner' || (workspacesStore.activeRole === 'editor' && todo.owner._id === user.value?._id)
 
 const stats = computed(() => [
   {
@@ -170,10 +174,11 @@ const getErrorMessage = (error: any) =>
 const loadDashboard = async () => {
   loadError.value = ''
   try {
+    await workspacesStore.fetchWorkspaces()
     await Promise.all([
-      todosStore.fetchTodos({ limit: 5 }),
+      todosStore.fetchTodos({ limit: 5, ...(workspacesStore.activeWorkspaceId ? { workspace: workspacesStore.activeWorkspaceId } : {}) }),
       todosStore.fetchSharedTodos(),
-      todosStore.fetchStats(),
+      todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined),
     ])
   } catch (error: any) {
     loadError.value = getErrorMessage(error)
@@ -190,7 +195,7 @@ const openEdit = (todo: Todo) => {
 const handleToggle = async (todo: Todo) => {
   try {
     await todosStore.toggleStatus(todo._id, todo.status)
-    await todosStore.fetchStats()
+    await todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined)
     toast.success('Status updated!')
   } catch (error: any) {
     toast.error(getErrorMessage(error))
@@ -201,7 +206,7 @@ const handleDelete = async (todo: Todo) => {
   if (!confirm(`Delete "${todo.title}"?`)) return
   try {
     await todosStore.deleteTodo(todo._id)
-    await todosStore.fetchStats()
+    await todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined)
     toast.success('Todo deleted.')
   } catch (error: any) {
     toast.error(getErrorMessage(error))

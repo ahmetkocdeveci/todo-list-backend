@@ -11,6 +11,8 @@
 - **Filtreleme, Arama, Sıralama, Sayfalama** — tam-metin arama + öncelik/durum/kategori filtresi
 - **Görsel yükleme** — Cloudinary entegrasyonu (her todo'ya opsiyonel görsel)
 - **Todo Paylaşımı** — kullanıcı adı/isim aramasıyla view/edit izinleriyle paylaşım
+- **Workspaces** — her kullanıcı için otomatik kişisel alan, ekip alanı oluşturma ve davet akışı
+- **Rol tabanlı ekip yetkileri** — owner tüm todo'ları/yetkileri yönetir; editor yalnızca kendi todo'larını yönetir; viewer yalnızca görür
 - **Profil gizliliği** — todo'lar varsayılan private; yalnızca kullanıcı isterse profilde görünür
 - **Email Bildirimleri** — iletişim formu + günlük hatırlatma maili (cron job)
 - **Dark/Light Mode** — localStorage + sistem tercihi
@@ -42,20 +44,21 @@
 todo-list/
 ├── backend/
 │   ├── config/       → DB, Cloudinary yapılandırması
-│   ├── models/       → User.js, Todo.js (Mongoose şemaları)
-│   ├── controllers/  → auth, todo, user, mail, cron
-│   ├── routes/       → authRoutes, todoRoutes, userRoutes
+│   ├── models/       → User, Todo, Workspace, WorkspaceInvitation şemaları
+│   ├── controllers/  → HTTP istek/yanıt katmanı
+│   ├── services/     → auth, todo, user, workspace, mail iş kuralları
+│   ├── routes/       → auth, todo, user, workspace route'ları
 │   ├── middlewares/  → auth (JWT), validate (Joi), upload, errorHandler
-│   ├── utils/        → jwtHelper, sendMail, apiFeatures
-│   ├── tests/        → auth.test.js, todo.test.js
+│   ├── utils/        → AppError, jwtHelper, sendMail, apiFeatures
+│   ├── tests/        → API ve service unit testleri
 │   ├── app.js       → Express uygulaması (test edilebilir, port dinlemez)
 │   └── server.js    → DB bağlantısı ve HTTP başlatıcısı
 │
 └── frontend/
-    ├── pages/        → index, login, register, dashboard, todos/[id], profile/[username], contact
+    ├── pages/        → index, login, register, dashboard, todos, workspaces, profile, contact
     ├── components/   → AppNavbar, TodoCard, TodoForm, TodoFilter, ...
     ├── composables/  → useDarkMode, useToast
-    ├── stores/       → auth.ts, todos.ts (Pinia)
+    ├── stores/       → auth.ts, todos.ts, workspaces.ts (Pinia)
     ├── middleware/   → auth.ts, guest.ts
     ├── layouts/      → default.vue
     └── nuxt.config.ts
@@ -213,6 +216,29 @@ Demo bellek içi MongoDB kullanır; ilk çalıştırmada uygun MongoDB binary'si
 | POST | `/api/users/contact` | İletişim formu | ❌ |
 | GET | `/api/users` | Tüm kullanıcılar (Admin) | ✅ Admin |
 
+### Workspaces
+
+| Metot | URL | Açıklama | Auth |
+|---|---|---|---|
+| GET | `/api/workspaces` | Kullanıcının kişisel ve ekip alanları | ✅ |
+| POST | `/api/workspaces` | Yeni ekip alanı oluştur | ✅ |
+| GET | `/api/workspaces/:id` | Alan ve üyelerini görüntüle | ✅ Üye |
+| POST | `/api/workspaces/:id/invitations` | Üye davet et | ✅ Owner |
+| GET | `/api/workspaces/invitations` | Bekleyen davetler | ✅ |
+| POST | `/api/workspaces/invitations/:id/accept` | Daveti kabul et | ✅ Davetli |
+| POST | `/api/workspaces/invitations/:id/decline` | Daveti reddet | ✅ Davetli |
+| PATCH | `/api/workspaces/:id/members/:memberId` | Editor/viewer rolünü değiştir | ✅ Owner |
+| DELETE | `/api/workspaces/:id/members/:memberId` | Üyeyi çıkar | ✅ Owner |
+
+### Workspace kuralları
+
+- Kayıt olan her kullanıcıya otomatik bir **Personal Workspace** verilir. Eski kişisel todo'lar ilk erişimde bu alana taşınır.
+- Ekip alanındaki bir todo için `workspace` alanını gönderin. Ekip todo'ları profil için public yapılamaz.
+- **Owner** ekip üyelerini ve tüm ekip todo'larını yönetir.
+- **Editor** todo oluşturabilir; yalnızca kendi oluşturduğu ekip todo'larını güncelleyip silebilir.
+- **Viewer** ekip todo'larını listeleyip detayını görebilir, değiştiremez.
+- Eski tekil todo paylaşımı (`/share`) kişisel todo'lar için korunur; ekip todo'larında üyelik üzerinden erişim kullanılır.
+
 ---
 
 ## 🧪 Thunder Client / Postman Örnek İstekleri
@@ -295,6 +321,31 @@ Content-Type: application/json
 }
 ```
 
+### 8. Ekip Alanı Oluştur ve Üye Davet Et
+```
+POST http://localhost:5000/api/workspaces
+Cookie: token=<owner_token>
+Content-Type: application/json
+
+{
+  "name": "Product Team",
+  "description": "Product planning and delivery"
+}
+```
+
+```
+POST http://localhost:5000/api/workspaces/<workspace_id>/invitations
+Cookie: token=<owner_token>
+Content-Type: application/json
+
+{
+  "email": "teammate@example.com",
+  "role": "editor"
+}
+```
+
+Kabul eden kullanıcı ekip todo'larını `GET /api/todos?workspace=<workspace_id>` ile görüntüler; yeni todo oluştururken gövdeye `"workspace": "<workspace_id>"` ekler.
+
 ---
 
 ## 🧪 Testleri Çalıştırma
@@ -309,6 +360,10 @@ Testler Atlas'a bağlanmaz. Jest, test başlangıcında izole bir `mongodb-memor
 Test dosyaları `backend/tests/` altında:
 - `auth.test.js` — register, login, logout, getMe
 - `todo.test.js` — CRUD, filtreler, istatistikler, profil gizliliği ve sahip izolasyonu
+- `workspace.test.js` — davet, kabul, owner/editor/viewer izinleri
+- `services/` — auth ve todo iş kuralları için unit testleri
+
+Controller'lar HTTP, cookie ve dosya yükleme sınırını yönetir. Kullanıcı/rol kontrolü, todo izinleri ve workspace kuralları `backend/services/` içinde tutulur; böylece aynı kural farklı endpoint'lerde tekrarlanmaz ve bağımsız test edilir.
 
 Frontend tip kontrolü ve production build doğrulaması:
 

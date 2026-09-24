@@ -36,9 +36,9 @@
                 {{ todo.title }}
               </h1>
 
-              <div v-if="isOwner || hasEditPermission" class="flex items-center gap-2 flex-shrink-0">
+              <div v-if="canManageTodo" class="flex items-center gap-2 flex-shrink-0">
                 <button @click="showEdit = true" class="btn-outline text-sm">✏️ Edit</button>
-                <button v-if="isOwner" @click="handleDelete" class="btn-danger text-sm">🗑️ Delete</button>
+                <button v-if="canDeleteTodo" @click="handleDelete" class="btn-danger text-sm">🗑️ Delete</button>
               </div>
             </div>
 
@@ -77,7 +77,7 @@
             />
           </div>
 
-          <div v-if="isOwner || hasEditPermission" class="card">
+          <div v-if="canManageTodo" class="card">
             <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">Update Status</h3>
             <div class="flex flex-wrap gap-2">
               <button
@@ -94,7 +94,7 @@
             </div>
           </div>
 
-          <div v-if="isOwner" class="card">
+          <div v-if="isOwner && !todo.workspace" class="card">
             <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">
               👥 Share This Todo
             </h3>
@@ -234,6 +234,16 @@ const hasEditPermission = computed(() =>
     (s: Todo['sharedWith'][number]) => s.user._id === authStore.user?._id && s.permission === 'edit'
   ) ?? false
 )
+const canManageTodo = computed(() => {
+  if (todo.value?.workspace) {
+    return todo.value.workspaceRole === 'owner' || (todo.value.workspaceRole === 'editor' && isOwner.value)
+  }
+  return isOwner.value || hasEditPermission.value
+})
+const canDeleteTodo = computed(() => {
+  if (todo.value?.workspace) return todo.value.workspaceRole === 'owner' || (todo.value.workspaceRole === 'editor' && isOwner.value)
+  return isOwner.value
+})
 
 const statusLabel = computed(() => {
   const map: Record<string, string> = {

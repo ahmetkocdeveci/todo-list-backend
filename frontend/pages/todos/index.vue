@@ -2,12 +2,20 @@
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">My Todos</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ workspacesStore.activeSummary?.name || 'My Todos' }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400">
           {{ todosStore.pagination.total }} total • {{ todosStore.stats.completed }} completed
         </p>
       </div>
       <div class="flex items-center gap-3">
+        <select
+          v-model="selectedWorkspaceId"
+          class="input py-2 text-sm max-w-48"
+          aria-label="Active workspace"
+          @change="changeWorkspace"
+        >
+          <option v-for="workspace in workspacesStore.workspaces" :key="workspace._id" :value="workspace._id">{{ workspace.name }}</option>
+        </select>
         <div class="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
           <button
             @click="viewMode = 'grid'"
@@ -29,7 +37,7 @@
             </svg>
           </button>
         </div>
-        <button @click="showForm = true" class="btn-primary">➕ New Todo</button>
+        <button @click="showForm = true" class="btn-primary" :disabled="!workspacesStore.canCreateTodos">➕ New Todo</button>
       </div>
     </div>
 
@@ -41,7 +49,7 @@
           ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
           : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
       >
-        My Todos ({{ todosStore.pagination.total }})
+        Workspace Todos ({{ todosStore.pagination.total }})
       </button>
       <button
         @click="activeTab = 'shared'"
@@ -75,7 +83,7 @@
       <p class="text-gray-400 mb-6">
         {{ activeTab === 'shared' ? 'No one has shared any todos with you yet.' : 'Create your first todo to get started!' }}
       </p>
-      <button v-if="activeTab === 'my'" @click="showForm = true" class="btn-primary">
+      <button v-if="activeTab === 'my' && workspacesStore.canCreateTodos" @click="showForm = true" class="btn-primary">
         Create First Todo
       </button>
     </div>
@@ -90,7 +98,7 @@
         v-for="todo in activeTodos"
         :key="todo._id"
         :todo="todo"
-        :readonly="activeTab === 'shared'"
+        :readonly="activeTab === 'shared' || !canManageTodo(todo)"
         @click="navigateTo(`/todos/${todo._id}`)"
         @toggle="handleToggle"
         @edit="openEdit"
@@ -132,12 +140,16 @@
 <script setup lang="ts">
 import { useTodosStore } from '~/stores/todos'
 import type { Todo } from '~/stores/todos'
+import { useAuthStore } from '~/stores/auth'
+import { useWorkspacesStore } from '~/stores/workspaces'
 import { useToast } from '~/composables/useToast'
 
 definePageMeta({ middleware: 'auth', layout: 'default' })
 useHead({ title: 'My Todos' })
 
 const todosStore = useTodosStore()
+const authStore = useAuthStore()
+const workspacesStore = useWorkspacesStore()
 const toast = useToast()
 const route = useRoute()
 
@@ -151,6 +163,7 @@ const loadError = ref('')
 const activeTab = ref<'my' | 'shared'>(
   route.query.tab === 'shared' ? 'shared' : 'my'
 )
+const selectedWorkspaceId = ref('')
 
 const activeTodos = computed(() =>
   activeTab.value === 'my' ? todosStore.todos : todosStore.sharedTodos
@@ -170,8 +183,14 @@ const loadTodos = async () => {
   await todosStore.fetchTodos({
     page: currentPage.value,
     limit: 9,
+    ...(workspacesStore.activeWorkspaceId ? { workspace: workspacesStore.activeWorkspaceId } : {}),
     ...activeFilters.value,
   })
+}
+
+const canManageTodo = (todo: Todo) => {
+  const role = workspacesStore.activeRole
+  return role === 'owner' || (role === 'editor' && todo.owner._id === authStore.user?._id)
 }
 
 const getErrorMessage = (error: any) =>
@@ -190,10 +209,21 @@ const loadInitialData = async () => {
   pageLoading.value = true
   loadError.value = ''
 
+  try {
+    await workspacesStore.fetchWorkspaces()
+    const requestedWorkspace = typeof route.query.workspace === 'string' ? route.query.workspace : null
+    if (requestedWorkspace && workspacesStore.workspaces.some((workspace) => workspace._id === requestedWorkspace)) workspacesStore.setActive(requestedWorkspace)
+    selectedWorkspaceId.value = workspacesStore.activeWorkspaceId || ''
+  } catch (error: any) {
+    loadError.value = getErrorMessage(error)
+    pageLoading.value = false
+    return
+  }
+
   const results = await Promise.allSettled([
     loadTodos(),
     todosStore.fetchSharedTodos(),
-    todosStore.fetchStats(),
+    todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined),
   ])
   const failure = results.find((result) => result.status === 'rejected')
   if (failure?.status === 'rejected') {
@@ -201,6 +231,13 @@ const loadInitialData = async () => {
   }
 
   pageLoading.value = false
+}
+
+const changeWorkspace = async () => {
+  if (!selectedWorkspaceId.value) return
+  workspacesStore.setActive(selectedWorkspaceId.value)
+  currentPage.value = 1
+  await Promise.all([loadTodosSafely(), todosStore.fetchStats(selectedWorkspaceId.value)])
 }
 
 onMounted(loadInitialData)
@@ -225,7 +262,7 @@ const openEdit = (todo: Todo) => {
 const handleToggle = async (todo: Todo) => {
   try {
     await todosStore.toggleStatus(todo._id, todo.status)
-    await todosStore.fetchStats()
+    await todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined)
     toast.success('Status updated! ✅')
   } catch (error: any) {
     toast.error(getErrorMessage(error))
@@ -236,7 +273,7 @@ const handleDelete = async (todo: Todo) => {
   if (!confirm(`Delete "${todo.title}"?`)) return
   try {
     await todosStore.deleteTodo(todo._id)
-    await Promise.all([loadTodos(), todosStore.fetchStats()])
+    await Promise.all([loadTodos(), todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined)])
     toast.success('Todo deleted.')
   } catch (error: any) {
     loadError.value = getErrorMessage(error)
@@ -246,7 +283,7 @@ const handleDelete = async (todo: Todo) => {
 
 const onSubmitted = async () => {
   editingTodo.value = null
-  await Promise.all([loadTodosSafely(), todosStore.fetchStats()])
+  await Promise.all([loadTodosSafely(), todosStore.fetchStats(workspacesStore.activeWorkspaceId || undefined)])
 }
 
 watch(showForm, (val: boolean) => {

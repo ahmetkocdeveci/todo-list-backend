@@ -25,6 +25,13 @@
         >My Todos</NuxtLink>
 
         <NuxtLink
+          v-if="isLoggedIn"
+          to="/workspaces"
+          class="nav-link"
+          active-class="nav-link-active"
+        >Workspaces</NuxtLink>
+
+        <NuxtLink
           to="/contact"
           class="nav-link"
           active-class="nav-link-active"
@@ -94,6 +101,13 @@
                 >
                   📋 My Todos
                 </NuxtLink>
+                <NuxtLink
+                  to="/workspaces"
+                  class="dropdown-item"
+                  @click="dropdownOpen = false"
+                >
+                  👥 Workspaces
+                </NuxtLink>
                 <hr class="my-1 border-gray-200 dark:border-gray-700" />
                 <button
                   @click="handleLogout"
@@ -134,6 +148,7 @@
         <div class="px-4 py-3 space-y-1">
           <NuxtLink v-if="isLoggedIn" to="/dashboard" class="mobile-nav-link" @click="mobileOpen = false">Dashboard</NuxtLink>
           <NuxtLink v-if="isLoggedIn" to="/todos" class="mobile-nav-link" @click="mobileOpen = false">My Todos</NuxtLink>
+          <NuxtLink v-if="isLoggedIn" to="/workspaces" class="mobile-nav-link" @click="mobileOpen = false">Workspaces</NuxtLink>
           <NuxtLink to="/contact" class="mobile-nav-link" @click="mobileOpen = false">Contact</NuxtLink>
           <template v-if="!isLoggedIn">
             <NuxtLink to="/login" class="mobile-nav-link" @click="mobileOpen = false">Login</NuxtLink>

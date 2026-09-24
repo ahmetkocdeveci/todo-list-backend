@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 interface TodoImage {
   url: string
-  publicId: string
+  publicId?: string
 }
 
 interface SharedWith {
@@ -22,6 +22,8 @@ export interface Todo {
   completedAt?: string
   image?: TodoImage
   owner: { _id: string; username: string; name?: string; avatar: TodoImage }
+  workspace?: string
+  workspaceRole?: 'owner' | 'editor' | 'viewer'
   sharedWith: SharedWith[]
   tags: string[]
   isOverdue: boolean
@@ -71,10 +73,10 @@ export const useTodosStore = defineStore('todos', {
   },
 
   actions: {
-    async fetchStats() {
+    async fetchStats(workspaceId?: string) {
       const config = useRuntimeConfig()
       const data = await $fetch<{ success: boolean; stats: TodoStats }>(
-        `${config.public.apiBase}/todos/stats`,
+        `${config.public.apiBase}/todos/stats${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`,
         { credentials: 'include' }
       )
       this.stats = data.stats

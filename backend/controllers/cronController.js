@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { sendDueDateReminders } = require('./mailController');
+const { sendDueDateReminders } = require('../services/mailService');
 
 const scheduleDueDateReminders = () => {
   cron.schedule(
